@@ -1,0 +1,10 @@
+{
+  "pid": 56244,
+  "url": "http://192.168.2.24:7700",
+  "port": 7700,
+  "start": [
+    "/Users/kasparkallas/Documents/GitHub/HHBot/Nilsson/.venv/bin/python",
+    "/Users/kasparkallas/Documents/GitHub/HHBot/Nilsson/examples/minesweeper/app.py"
+  ],
+  "started": "2026-05-21T10:45:48Z"
+}

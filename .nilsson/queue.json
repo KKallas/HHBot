@@ -1,0 +1,30 @@
+[
+  {
+    "id": "90ded95a890f",
+    "tool": "workflow:run_local",
+    "title": "Project server running",
+    "detail_html": "<h3>Project server running</h3><p>Launched with: <code>/Users/kasparkallas/Documents/GitHub/HHBot/Nilsson/.venv/bin/python /Users/kasparkallas/Documents/GitHub/HHBot/Nilsson/examples/minesweeper/app.py</code> (pid 56244).</p><p style=\"margin:12px 0;\"><a href=\"http://192.168.2.24:7700\" target=\"_blank\" style=\"display:inline-block;padding:8px 20px;background:#58a6ff;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;\">Open http://192.168.2.24:7700</a></p><p style=\"font-size:13px;color:#8b949e;\">Nilsson stays on its own port (loopback). Click <b>Stop</b> to terminate. Run <code>show_dashboard</code> to embed this page in the dashboard alongside the chat.</p>",
+    "actions": [
+      {
+        "label": "Stop",
+        "action": "continue"
+      }
+    ],
+    "status": "pending",
+    "created_at": "2026-05-21T10:45:48+00:00"
+  },
+  {
+    "id": "3c4fd0b21d65",
+    "tool": "workflow:show_dashboard",
+    "title": "Dashboard view active",
+    "detail_html": "<h3>Project view in dashboard</h3><p>The served project is embedded as an iframe widget \u2014 it shows up in the dashboard drawer alongside the chat.</p><p style=\"margin:12px 0;\"><a href=\"#\" onclick=\"event.preventDefault();loadInDashboard('http://127.0.0.1:8421/public/charts/2181502fe916.html')\" style=\"display:inline-block;padding:8px 20px;background:#58a6ff;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;\">View in dashboard</a></p><p style=\"font-size:13px;color:#8b949e;\">Iframe target: <code>http://192.168.2.24:7700</code>. The widget waits for the server to be ready before showing (no \"site can't be reached\" flash on cold start). Click <b>Stop showing</b> to end this workflow; the project itself keeps running.</p>",
+    "actions": [
+      {
+        "label": "Stop showing",
+        "action": "continue"
+      }
+    ],
+    "status": "pending",
+    "created_at": "2026-05-21T10:45:48+00:00"
+  }
+]
