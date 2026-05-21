@@ -55,7 +55,7 @@ A separate routine runs on a regular interval: it analyzes the camera image, ide
 
 ## Architecture
 
-Each player runs their own **Nilsson instance** with a bot (MG400) connected directly. There is no shared backend — each Nilsson controls its own arm end-to-end.
+Three Nilsson instances make up the system. The **game master (Nilsson 3)** sits at the center — both robots connect directly to it, and both player machines communicate through it. Players never talk to the bots directly.
 
 ```
   Player 1                                Player 2
@@ -65,33 +65,35 @@ Each player runs their own **Nilsson instance** with a bot (MG400) connected dir
 │  Dashboard +     │                │  Dashboard +     │
 │  Python backend  │                │  Python backend  │
 └────────┬─────────┘                └────────┬─────────┘
-         │ TCP :29999                        │ TCP :29999
-         ▼                                   ▼
-   ┌───────────┐                       ┌───────────┐
-   │  MG400    │     shared overlap    │  MG400    │
-   │  Arm 1    │◄────── zone ────────▶ │  Arm 2    │
-   └───────────┘                       └───────────┘
-         ▲               ▲                   ▲
-         └───────────────┼───────────────────┘
-                         │
-                ┌────────▼─────────┐
-                │   ESP32 Tags     │
-                │ (markers, accel) │
-                └──────────────────┘
-                         ▲
-                         │ top-down feed
-              ┌──────────┴───────────┐
-              │  Game Master (cam PC)│
-              │  Camera + Score +    │
-              │  Timer (90 s)        │
-              └──────────────────────┘
+         │                                   │
+         └──────────┐           ┌────────────┘
+                    ▼           ▼
+          ┌─────────────────────────────┐
+          │      Nilsson (3)            │
+          │      GAME MASTER            │
+          │  Camera · Score · Timer     │
+          │  (90 s countdown)           │
+          └──┬──────────────────────┬───┘
+             │ TCP :29999           │ TCP :29999
+             ▼                      ▼
+       ┌───────────┐          ┌───────────┐
+       │  MG400    │  shared  │  MG400    │
+       │  Arm 1    │◄─overlap─▶  Arm 2    │
+       └───────────┘          └───────────┘
+             ▲          ▲           ▲
+             └──────────┼───────────┘
+                        │
+               ┌────────▼─────────┐
+               │   ESP32 Tags     │
+               │ (markers, accel) │
+               └──────────────────┘
 ```
 
-The **game master** is the computer with the camera attached. It runs the authoritative game clock (90-second countdown) and keeps score for both players. Player Nilsson instances receive the camera feed and score updates from this machine.
+The **game master** is the authoritative server: it owns the camera, runs the 90-second countdown, tracks score, decides which tag is the featured 10-point item, and relays the camera feed to both player Nilsson instances. Player code sends move commands to the game master, which forwards them to the correct arm.
 
 ### Simulator Mode
 
-When no physical hardware is available, a **third Nilsson server** acts as a simulator. It exposes the same TCP API that the real Dobot MG400 accepts, but instead of driving motors it renders the game field and outputs an **H.264 video stream** of the simulation. Player Nilsson instances connect to the simulator exactly as they would to real arms — no code changes required.
+When no physical hardware is available, the game master connects to a **simulator** instead of real MG400 arms. The simulator accepts the same TCP API calls the Dobot bots do but renders the game field as drawn video and outputs an **H.264 stream** in place of a real camera feed. Player Nilsson instances don't change — they still talk to the game master the same way.
 
 ## Scoring
 
