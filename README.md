@@ -80,10 +80,14 @@ Each player runs their own **Nilsson instance** with a bot (MG400) connected dir
                 └──────────────────┘
                          ▲
                          │ top-down feed
-                ┌────────┴─────────┐
-                │     Camera       │
-                └──────────────────┘
+              ┌──────────┴───────────┐
+              │  Game Master (cam PC)│
+              │  Camera + Score +    │
+              │  Timer (90 s)        │
+              └──────────────────────┘
 ```
+
+The **game master** is the computer with the camera attached. It runs the authoritative game clock (90-second countdown) and keeps score for both players. Player Nilsson instances receive the camera feed and score updates from this machine.
 
 ### Simulator Mode
 
