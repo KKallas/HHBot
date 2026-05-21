@@ -1,16 +1,95 @@
 # HHBot
 
-An educational game featuring 2x Dobot MG400 robot arms with vacuum pumps and ESP32 battery-powered tags — inspired by Hungry Hungry Hippos.
+A physical robotics game and interactive teaching environment — two Dobot MG400 arms compete to grab ESP32 tags off a shared field. Inspired by Hungry Hungry Hippos.
 
 ## Overview
 
-HHBot brings the classic Hungry Hungry Hippos concept into the world of robotics and embedded systems. Players control Dobot MG400 robotic arms equipped with vacuum pumps to grab tagged objects scattered across a play area. ESP32-powered tags enable real-time tracking and scoring.
+HHBot is a hands-on educational platform that combines robot arm control, computer vision, and embedded systems into a competitive game. Two Dobot MG400 robot arms face each other across a play field, their working areas deliberately overlapping by roughly 50%. Scattered across the overlap zone are lightweight ESP32-powered tags, each displaying a marker worth a different number of points. Players (or autonomous agents) pick up tags and deliver them to a scoring receptacle — and the race is on.
+
+The system is designed as a teaching tool — a **replacement for Scratch** — where students program real hardware with Claude Code instead of drag-and-drop blocks. They start by clicking on a live camera feed to command the arm, then use AI-assisted coding to optimize their pickup strategy, and finally build fully autonomous routines that read the field and act on their own.
+
+## How It Works
+
+### The Game Field
+
+Each round lasts **90 seconds**. The two MG400 arms are positioned so their reachable areas overlap in the center. The shared zone holds the ESP32 tags — small (<3 g) battery-powered boards with on-screen markers. Most tags are worth **1 point**, but the dashboard highlights the **next valuable item** (worth **10 points**) on screen — it stays highlighted until someone delivers it to their receptacle, then a new one is chosen.
+
+### Picking Up Tags
+
+Each arm uses a vacuum pump end-effector to grab tags. Tags are delivered to a dispensing box (receptacle) where scoring is validated by weight — tags don't need to land face-up.
+
+### The Dashboard (Manual Mode)
+
+The player sees the Nilsson environment with a dashboard showing a **top-down camera view** of the game field. Clicking on the field sends image coordinates to a Python backend that converts them to robot-arm coordinates, moves the arm to that position, picks up the tag, and delivers it to the dispensing box.
+
+### AI-Assisted Optimization
+
+The control Python is exposed to the user. With agent help (Nilsson), players can modify the pickup and delivery code — optimizing path planning, grip timing, or multi-tag sequencing for faster manipulation.
+
+### Collisions
+
+Because the arms share roughly half their working area, **collisions are real and physical**. The MG400 has built-in collision detection — when it triggers, the robot enters alarm state (`RobotMode() == 11`) and all motion stops.
+
+**Reset procedure** (fully remote via TCP port 29999 — no physical button required):
+
+1. `ClearError()` — clear the collision alarm
+2. `RobotMode()` — poll until it returns **5** (enabled/idle = ready to go, the "ref with three fingers up")
+3. `EnableRobot()` — re-enable if the robot fully disabled during the alarm
+4. `Continue()` — resume any queued motion commands
+
+**The penalty is deliberately prohibitively expensive.** The reset sequence itself costs several seconds of the 90-second clock, and the system applies a **point deduction** on top. Players learn fast that collision avoidance isn't optional — it's the core engineering challenge. Competing for the same 10-point tag is tempting, but not if a collision wipes out your lead.
+
+### Autonomous Mode
+
+A separate routine runs on a regular interval: it analyzes the camera image, identifies tag positions and classes, and creates movement events automatically when certain conditions are met — no clicks required.
 
 ## Hardware
 
-- 2x [Dobot MG400](https://www.dobot-robots.com/products/desktop-four-axis/mg400.html) desktop robot arms
-- Vacuum pump end-effectors
-- ESP32 battery-powered tracking tags
+| Component | Details |
+|---|---|
+| Robot arms | 2x [Dobot MG400](https://www.dobot-robots.com/products/desktop-four-axis/mg400.html) desktop 4-axis arms |
+| End-effectors | Vacuum pump grippers |
+| Tags | ESP32 battery-powered boards (&lt;3 g) with accelerometer and on-screen markers |
+| Camera | Top-down overhead camera covering the game field |
+| Receptacles | Dispensing boxes (one per arm) with weight-based validation |
+
+## Architecture
+
+```
+┌─────────────┐    top-down     ┌──────────────────┐
+│   Camera     │───── feed ────▶│  Nilsson Dashboard │
+└─────────────┘                 │  (live view)       │
+                                └────────┬───────────┘
+                                         │ click / auto event
+                                         ▼
+                                ┌──────────────────┐
+                                │  Python Backend    │
+                                │  (coord transform, │
+                                │   path planning)   │
+                                └───┬──────────┬────┘
+                                    │          │
+                              ┌─────▼──┐  ┌───▼─────┐
+                              │ MG400  │  │ MG400   │
+                              │ Arm 1  │  │ Arm 2   │
+                              └────────┘  └─────────┘
+                                    ▲          ▲
+                                    └────┬─────┘
+                                         │ shared overlap zone
+                                ┌────────▼────────┐
+                                │   ESP32 Tags     │
+                                │ (markers, accel) │
+                                └─────────────────┘
+```
+
+## Scoring
+
+- **Regular tags** — 1 point each
+- **Featured tag** — 10 points; the dashboard highlights the next valuable item on screen until it is collected, then a new one is selected
+- **Collision penalty** — point deduction + seconds lost to the reset sequence (ClearError → re-enable → resume)
+- Round duration: **90 seconds**
+- Tags are delivered to the player's receptacle (dispensing box)
+- Delivery is validated by weight — orientation doesn't matter
+- The ESP32 accelerometer can detect handling events
 
 ## License
 
