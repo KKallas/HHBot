@@ -55,31 +55,39 @@ A separate routine runs on a regular interval: it analyzes the camera image, ide
 
 ## Architecture
 
+Each player runs their own **Nilsson instance** with a bot (MG400) connected directly. There is no shared backend — each Nilsson controls its own arm end-to-end.
+
 ```
-┌─────────────┐    top-down     ┌──────────────────┐
-│   Camera     │───── feed ────▶│  Nilsson Dashboard │
-└─────────────┘                 │  (live view)       │
-                                └────────┬───────────┘
-                                         │ click / auto event
-                                         ▼
-                                ┌──────────────────┐
-                                │  Python Backend    │
-                                │  (coord transform, │
-                                │   path planning)   │
-                                └───┬──────────┬────┘
-                                    │          │
-                              ┌─────▼──┐  ┌───▼─────┐
-                              │ MG400  │  │ MG400   │
-                              │ Arm 1  │  │ Arm 2   │
-                              └────────┘  └─────────┘
-                                    ▲          ▲
-                                    └────┬─────┘
-                                         │ shared overlap zone
-                                ┌────────▼────────┐
-                                │   ESP32 Tags     │
-                                │ (markers, accel) │
-                                └─────────────────┘
+  Player 1                                Player 2
+
+┌──────────────────┐                ┌──────────────────┐
+│  Nilsson (1)     │                │  Nilsson (2)     │
+│  Dashboard +     │                │  Dashboard +     │
+│  Python backend  │                │  Python backend  │
+└────────┬─────────┘                └────────┬─────────┘
+         │ TCP :29999                        │ TCP :29999
+         ▼                                   ▼
+   ┌───────────┐                       ┌───────────┐
+   │  MG400    │     shared overlap    │  MG400    │
+   │  Arm 1    │◄────── zone ────────▶ │  Arm 2    │
+   └───────────┘                       └───────────┘
+         ▲               ▲                   ▲
+         └───────────────┼───────────────────┘
+                         │
+                ┌────────▼─────────┐
+                │   ESP32 Tags     │
+                │ (markers, accel) │
+                └──────────────────┘
+                         ▲
+                         │ top-down feed
+                ┌────────┴─────────┐
+                │     Camera       │
+                └──────────────────┘
 ```
+
+### Simulator Mode
+
+When no physical hardware is available, a **third Nilsson server** acts as a simulator. It exposes the same TCP API that the real Dobot MG400 accepts, but instead of driving motors it renders the game field and outputs an **H.264 video stream** of the simulation. Player Nilsson instances connect to the simulator exactly as they would to real arms — no code changes required.
 
 ## Scoring
 
