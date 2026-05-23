@@ -23,27 +23,24 @@ from .scene import (
     FIELD_H_MM,
     FIELD_W_MM,
     ROBOT_BASE_SIDE_MM,
-    Z_MARKER_MM,
-    Z_SAFE_MM,
-    Z_TOOL_MM,
     Scene,
 )
 
 
 # ----- display configuration -----
+# 16:9 top-down only; the Z side strip moved out of the video stream so the
+# camera view stays clean. Live Z values are exposed via /state and shown in
+# the test page's State (JSON) panel.
 MM_TO_PX = 1.0                    # 1 mm = 1 px on the rendered canvas
-SIDE_STRIP_Z_RANGE_MM = 120.0     # how much vertical Z the side strip shows
-SIDE_STRIP_H_PX = 140             # pixel height of the side strip panel
-
 TOPDOWN_H_PX = int(FIELD_H_MM * MM_TO_PX)
 TOPDOWN_W_PX = int(FIELD_W_MM * MM_TO_PX)
 CANVAS_W_PX = TOPDOWN_W_PX
-CANVAS_H_PX = TOPDOWN_H_PX + SIDE_STRIP_H_PX
+CANVAS_H_PX = TOPDOWN_H_PX
 
 # ----- grid + dim labels -----
 GRID_MAJOR_MM = 100
 GRID_MINOR_MM = 50
-AXIS_LABEL_EVERY_MM = 200
+AXIS_LABEL_EVERY_MM = 100
 
 # ----- robot drawing -----
 ARM_WIDTH_MM = 30                 # arm rectangle thickness
@@ -181,16 +178,16 @@ def _draw_axis_labels(panel: np.ndarray) -> None:
     font = cv2.FONT_HERSHEY_SIMPLEX
     # X labels along the top edge
     for x in range(0, FIELD_W_MM + 1, AXIS_LABEL_EVERY_MM):
-        cv2.putText(panel, f"{x}", (_mm(x) + 3, 14), font, 0.4, color, 1, cv2.LINE_AA)
+        cv2.putText(panel, f"{x}", (_mm(x) + 3, 12), font, 0.35, color, 1, cv2.LINE_AA)
     # Y labels down the left edge
     for y in range(0, FIELD_H_MM + 1, AXIS_LABEL_EVERY_MM):
         py = _mm(y)
-        cv2.putText(panel, f"{y}", (4, py + 12 if y == 0 else py - 4), font, 0.4, color, 1, cv2.LINE_AA)
+        cv2.putText(panel, f"{y}", (4, py + 10 if y == 0 else py - 3), font, 0.35, color, 1, cv2.LINE_AA)
     # Total dims on outer edges
-    cv2.putText(panel, f"{FIELD_W_MM} mm", (TOPDOWN_W_PX // 2 - 50, TOPDOWN_H_PX - 8),
-                font, 0.5, (200, 220, 200), 1, cv2.LINE_AA)
-    cv2.putText(panel, f"{FIELD_H_MM} mm", (TOPDOWN_W_PX - 90, 22),
-                font, 0.5, (200, 220, 200), 1, cv2.LINE_AA)
+    cv2.putText(panel, f"{FIELD_W_MM} mm", (TOPDOWN_W_PX // 2 - 40, TOPDOWN_H_PX - 6),
+                font, 0.4, (200, 220, 200), 1, cv2.LINE_AA)
+    cv2.putText(panel, f"{FIELD_H_MM} mm", (TOPDOWN_W_PX - 70, 18),
+                font, 0.4, (200, 220, 200), 1, cv2.LINE_AA)
 
 
 def _draw_reach_circles(panel: np.ndarray, scene: Scene) -> None:
@@ -277,83 +274,27 @@ def _draw_tags(panel: np.ndarray, scene: Scene) -> None:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
 
-# ----- side strip (Z viz) -----
-
-def _z_to_py(z_mm: float) -> int:
-    """Map world Z (mm) to pixel Y inside the side strip — Z increases up."""
-    margin = 14
-    usable = SIDE_STRIP_H_PX - 2 * margin
-    frac = max(0.0, min(1.0, z_mm / SIDE_STRIP_Z_RANGE_MM))
-    return TOPDOWN_H_PX + SIDE_STRIP_H_PX - margin - int(usable * frac)
-
-
-def _draw_side_strip(frame: np.ndarray, scene: Scene) -> None:
-    y_top = TOPDOWN_H_PX
-    # Background
-    cv2.rectangle(frame, (0, y_top), (CANVAS_W_PX, CANVAS_H_PX),
-                  (20, 26, 20), thickness=-1)
-    # Separator
-    cv2.line(frame, (0, y_top), (CANVAS_W_PX, y_top),
-             (180, 200, 180), 1, cv2.LINE_AA)
-    # Title
-    cv2.putText(frame, "Z (mm)", (10, y_top + 18),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 220, 200), 1, cv2.LINE_AA)
-
-    # Reference horizontal lines + labels
-    refs = [
-        (0.0,         (90, 90, 90),     "Z=0"),
-        (Z_MARKER_MM, (0, 200, 200),    f"Z_marker {Z_MARKER_MM:.1f}"),
-        (Z_SAFE_MM,   (0, 220, 0),      f"Z_safe {Z_SAFE_MM:.1f}"),
-    ]
-    for z, color, label in refs:
-        py = _z_to_py(z)
-        cv2.line(frame, (60, py), (CANVAS_W_PX - 10, py), color, 1, cv2.LINE_AA)
-        cv2.putText(frame, label, (CANVAS_W_PX - 220, py - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
-
-    # Each robot's TCP altitude as a labelled marker at its world X
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    for r in scene.robots.values():
-        px = _mm(r.x)
-        py_tcp = _z_to_py(r.z)
-        py_flange = _z_to_py(r.z + Z_TOOL_MM)
-        # Vertical tool stick (TCP to flange)
-        cv2.line(frame, (px, py_tcp), (px, py_flange), r.color, 2, cv2.LINE_AA)
-        # Flange marker (small filled square)
-        cv2.rectangle(frame, (px - 6, py_flange - 4), (px + 6, py_flange + 4),
-                      r.color, thickness=-1)
-        # TCP marker (filled circle)
-        cv2.circle(frame, (px, py_tcp), 5, r.color, thickness=-1, lineType=cv2.LINE_AA)
-        cv2.circle(frame, (px, py_tcp), 5, (255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
-        # Label
-        cv2.putText(frame, f"R{r.id} z={r.z:5.1f}",
-                    (px + 8, py_tcp + 4), font, 0.4, r.color, 1, cv2.LINE_AA)
-
-
 # ----- top-level frame -----
 
 def render_frame(scene: Scene) -> np.ndarray:
+    """Render a single 16:9 top-down BGR frame. Z info no longer lives in
+    the stream — read it from /state."""
     frame = np.full((CANVAS_H_PX, CANVAS_W_PX, 3), (40, 80, 40), dtype=np.uint8)
 
-    # Top-down panel
-    topdown = frame[:TOPDOWN_H_PX, :, :]
-    _draw_grid(topdown)
-    _draw_axis_labels(topdown)
-    _draw_reach_circles(topdown, scene)
-    _draw_tags(topdown, scene)
+    _draw_grid(frame)
+    _draw_axis_labels(frame)
+    _draw_reach_circles(frame, scene)
+    _draw_tags(frame, scene)
     for r in scene.robots.values():
-        _draw_robot(topdown, r)
+        _draw_robot(frame, r)
 
-    # HUD
+    # HUD: timer (center top) + frame heartbeat (top-right)
     t = scene.game.time_left
     label = f"{t:5.1f}s" + ("" if scene.game.running else "  (paused)")
-    cv2.putText(frame, label, (CANVAS_W_PX // 2 - 90, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame, label, (CANVAS_W_PX // 2 - 80, 26),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, f"f{next(_frame_counter):06d}",
-                (CANVAS_W_PX - 110, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
-
-    # Side strip (Z viz)
-    _draw_side_strip(frame, scene)
+                (CANVAS_W_PX - 100, 18),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1, cv2.LINE_AA)
 
     return frame

@@ -5,11 +5,10 @@
 // the Z viz panel. Clicks inside the top-down map directly to world mm.
 // Clicks inside the side strip are ignored.
 
-const FIELD_W_MM = 1300;
-const FIELD_H_MM = 800;
-const SIDE_STRIP_H_PX = 140;
+const FIELD_W_MM = 700;
+const FIELD_H_MM = 394;
 const CANVAS_W = FIELD_W_MM;
-const CANVAS_H = FIELD_H_MM + SIDE_STRIP_H_PX;
+const CANVAS_H = FIELD_H_MM;
 
 // Default Z for click-driven move commands. The test page is a primitives
 // tester — descend/ascend cycles are scripted in Python by the player.
@@ -64,8 +63,6 @@ clickPad.addEventListener("click", (e) => {
   const px_x = (e.clientX - rect.left) * sx;
   const px_y = (e.clientY - rect.top) * sy;
 
-  // Ignore clicks in the bottom Z-viz strip — it's informational only.
-  if (px_y > FIELD_H_MM) return;
   if (px_x < 0 || px_y < 0 || px_x > FIELD_W_MM || px_y > FIELD_H_MM) return;
 
   const x_mm = Math.round(px_x * 10) / 10;

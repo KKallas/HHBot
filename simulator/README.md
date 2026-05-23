@@ -7,7 +7,7 @@ A standalone Python service that renders the HHBot game field in real physical u
 ## What's new in v2
 
 - **mm everywhere.** Field, reach, speed, tolerances all in mm. Pixels exist only at the render boundary.
-- **Field sized to the working envelope.** 1300 × 800 mm — the bounding box of both robots' reach circles, with bases 500 mm apart so each reach just touches the other robot's body.
+- **Field framed 16:9 with bodies at the edges.** 700 × 394 mm. Bases 500 mm apart; with the 200 mm body, R1's left face and R2's right face sit flush with the frame edges. The reach circles extend beyond the frame and are clipped at the camera boundary — same as a real overhead camera with limited FOV.
 - **Robots drawn realistically.** Base square (200 × 200 mm) + arm rectangle from base to TCP (varying length) + TCP indicator + a fixed ArUco marker on the TCP itself.
 - **TCP ArUco markers (DICT_5X5_50, IDs 0/1).** A live-stream CV pipeline can detect these and compare the visual position to whatever `/state` reports — built-in coordinate-frame ground truth.
 - **3D motion.** Robots have Z; `/move` requires `z`. Straight-line 3D interpolation at 300 mm/s. Pick succeeds only when TCP is within `10 mm` X/Y and `3 mm` Z of an unheld tag's marker.
@@ -74,11 +74,11 @@ If you'd rather drive the descent manually (e.g. for stepwise debugging), call `
 
 ## Defaults
 
-- Field: **1300 × 800 mm**
-- Robots: R1 base `(250, 400)` mm · R2 base `(750, 400)` mm · reach 400 mm · base side 200 mm
+- Field: **700 × 394 mm** (16:9; bodies pinned to frame edges)
+- Robots: R1 base `(100, 197)` mm · R2 base `(600, 197)` mm · reach 400 mm · base side 200 mm
 - Speed: 300 mm/s (3D)
-- ArUco: tags use `DICT_4X4_50` (30 mm side); robot TCP markers use `DICT_5X5_50` (30 mm side, IDs 0 and 1)
-- Render canvas: **1300 × 940 px** (top-down 1300 × 800 + side strip 1300 × 140) at 1 mm = 1 px
+- ArUco: tags use `DICT_4X4_50` (16 mm side, matches the AtomS3R display); robot TCP markers use `DICT_5X5_50` (30 mm side, IDs 0 and 1), rotated with the arm direction
+- Render canvas: **700 × 394 px** at 1 mm = 1 px
 - HLS: 25 fps, 1 s segments, last 5 retained
 
 ## Deliberately out of scope

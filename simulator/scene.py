@@ -19,8 +19,11 @@ from typing import Optional
 
 
 # ----- field -----
-FIELD_W_MM = 1300
-FIELD_H_MM = 800
+# 16:9 framing with the robot bodies pinned to the left and right edges:
+# bases 500 mm apart, body side 200 mm → body-outer to body-outer = 700 mm.
+# Height = 700 * 9/16 = 393.75, rounded to 394 mm.
+FIELD_W_MM = 700
+FIELD_H_MM = 394
 
 # ----- tag stack (from docs/tag-hardware.md) -----
 Z_BATTERY_TOP_MM = 23.93        # top of Atomic Battery Base
@@ -44,10 +47,11 @@ PICK_Z_TOL_MM = 3.0              # Z tolerance for /pick (TCP must be near marke
 ROUND_SECONDS = 90.0
 
 # Robot bases placed so each reach circle just touches the other robot's body
-# (base separation = reach + body_radius = 400 + 100 = 500 mm).
+# (base separation = reach + body_radius = 400 + 100 = 500 mm) AND so each
+# body's outer face is flush with the frame edge.
 ROBOT_HOMES_MM = {
-    1: (250.0, 400.0),       # left
-    2: (750.0, 400.0),       # right
+    1: (100.0, 197.0),       # left — body spans x = 0..200, frame-left flush
+    2: (600.0, 197.0),       # right — body spans x = 500..700, frame-right flush
 }
 
 # Start posture: arms partly extended toward the opponent so the field looks
