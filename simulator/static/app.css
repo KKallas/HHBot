@@ -19,10 +19,10 @@ header h1 { font-size: 1.1rem; margin: 0; }
 #hud { display: flex; gap: 24px; font-size: 0.9rem; }
 
 main {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
 }
 
 .stage { display: flex; flex-direction: column; gap: 10px; }
@@ -112,16 +112,25 @@ main {
 
 .state {
   background: #1c1c1c;
-  padding: 12px;
+  padding: 10px 12px;
   border-radius: 6px;
   border: 1px solid #333;
 }
-.state h2 { font-size: 1rem; margin: 0 0 8px; }
+.state summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  user-select: none;
+  list-style: none;
+}
+.state summary::-webkit-details-marker { display: none; }
+.state summary::before { content: "▸ "; }
+.state[open] summary::before { content: "▾ "; }
 #state-json {
   font-size: 0.78rem;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 80vh;
+  max-height: 40vh;
   overflow: auto;
-  margin: 0;
+  margin: 8px 0 0;
 }
