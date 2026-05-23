@@ -47,11 +47,19 @@ A separate routine runs on a regular interval: it analyzes the camera image, ide
 
 | Component | Details |
 |---|---|
-| Robot arms | 2x [Dobot MG400](https://www.dobot-robots.com/products/desktop-four-axis/mg400.html) desktop 4-axis arms |
+| Robot arms | 2x [Dobot MG400](https://www.dobot-robots.com/products/desktop-four-axis/mg400.html) desktop 4-axis arms (500 g payload) |
 | End-effectors | Vacuum pump grippers |
-| Tags | ESP32 battery-powered boards (&lt;3 g) with accelerometer and on-screen markers |
+| Tag controller | [M5Stack AtomS3R Dev Kit](https://shop.m5stack.com/products/atoms3r-dev-kit?variant=45605332615425) — ESP32-S3, 0.85" IPS LCD, BMI270 IMU, 6.8 g |
+| Tag battery | [M5Stack Atomic Battery Base 200 mAh](https://shop.m5stack.com/products/atomic-battery-base-200mah) — 3.7 V Li-ion, USB-C charge, 9.9 g |
+| Tag total | ~16.7 g stacked, 24 × 24 × ~37 mm — well under the MG400's 500 g vacuum payload (see [docs/tag-hardware.md](docs/tag-hardware.md)) |
 | Camera | Top-down overhead camera covering the game field |
 | Receptacles | Dispensing boxes (one per arm) with weight-based validation |
+
+### Tag Firmware
+
+Each tag runs a small PlatformIO firmware on the AtomS3R. On boot it joins the local Wi-Fi and announces itself (mDNS / UDP broadcast) with its tag ID and IP. The **game master** discovers tags this way and opens a persistent connection to each one — the tag's display behaves as a thin **remote screen** the game master pushes marker images to.
+
+This keeps game logic centralized: the game master decides which tag is the 10-point featured item and just pushes a different marker to that tag's display. The tag itself stays dumb — it renders what it's told and reports accelerometer events (handling, pickup) back over the same connection.
 
 ## Architecture
 
