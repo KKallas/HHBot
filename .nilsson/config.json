@@ -1,15 +1,28 @@
 {
   "repo": "KKallas/HHBot",
   "setup_complete": true,
-
   "startup": {
-    "autostart": ["run_local", "show_dashboard"]
+    "autostart": [
+      "run_local",
+      "show_dashboard"
+    ]
   },
-
   "project": {
     "_comment": "The HHBot simulator (milestone 1). Launched via Nilsson's venv so opencv-contrib-python (installed alongside Nilsson's deps) is on the import path. Port 7700 matches Nilsson's project-server convention.",
-    "start": ["Nilsson/.venv/bin/python", "-m", "simulator.main", "--port", "7700"],
+    "start": [
+      "Nilsson/.venv/bin/python",
+      "-m",
+      "simulator.main",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "7700"
+    ],
     "port": 7700,
     "target": "local"
-  }
+  },
+  "active_workflows": [
+    "run_local",
+    "show_dashboard"
+  ]
 }

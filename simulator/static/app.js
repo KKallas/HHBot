@@ -99,8 +99,13 @@ function attachHls() {
   const hls = new window.Hls({ liveSyncDuration: 2, lowLatencyMode: false });
   hls.loadSource(STREAM_URL);
   hls.attachMedia(video);
-  hls.on(window.Hls.Events.MANIFEST_PARSED, () => tryPlay());
-  hls.on(window.Hls.Events.FRAG_LOADED, () => setStatus(""));
+  hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+    setStatus("Manifest parsed — waiting for playback…");
+    tryPlay();
+  });
+  hls.on(window.Hls.Events.FRAG_LOADED, (_, data) => {
+    setStatus(`Loaded ${data.frag && data.frag.sn !== undefined ? "seg " + data.frag.sn : "segment"} — waiting for decode…`);
+  });
   hls.on(window.Hls.Events.ERROR, (_, data) => {
     if (!data.fatal) return;
     retries += 1;
@@ -113,6 +118,18 @@ function attachHls() {
   });
 }
 attachHls();
+
+// Native <video> events independently confirm decode + display state.
+// hls.js can happily report FRAG_LOADED while the video remains paused or
+// stuck on the first frame — these listeners tell us the *element* state.
+video.addEventListener("playing", () => setStatus(""));
+video.addEventListener("waiting", () => setStatus("Buffering…"));
+video.addEventListener("stalled", () => setStatus("Stalled — network or pipe paused"));
+video.addEventListener("pause", () => setStatus("Paused — press ▶"));
+video.addEventListener("error", () => {
+  const e = video.error;
+  setStatus(`Video element error: code ${e ? e.code : "?"}`, "error");
+});
 
 // Live state panel: poll /state at 2 Hz
 async function poll() {

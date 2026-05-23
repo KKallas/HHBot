@@ -88,7 +88,9 @@ def run() -> None:
     # CLI flags win, then env, then defaults. Env exists so the simulator can
     # be repointed without touching argv (e.g. from a parent process).
     parser = argparse.ArgumentParser(description="HHBot simulator")
-    parser.add_argument("--host", default=os.environ.get("SIMULATOR_HOST", "127.0.0.1"))
+    # Default host is 0.0.0.0 so Nilsson's dashboard iframe (which uses the
+    # LAN IP) can reach the stream. Override with 127.0.0.1 to stay loopback.
+    parser.add_argument("--host", default=os.environ.get("SIMULATOR_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int,
                         default=int(os.environ.get("SIMULATOR_PORT", "7700")))
     args = parser.parse_args()

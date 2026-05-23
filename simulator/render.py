@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import itertools
+
 import cv2
 import numpy as np
 
 from .scene import FIELD_H, FIELD_W, Scene
+
+# Monotonic frame counter rendered in the HUD as a heartbeat — so anyone
+# viewing the stream can tell instantly whether frames are being decoded or
+# the player is stuck on a stale image.
+_frame_counter = itertools.count()
 
 
 # ArUco dictionary used for every tag. Generated markers are cached so the
@@ -97,7 +104,7 @@ def render_frame(scene: Scene) -> np.ndarray:
             (255, 255, 255), 2, cv2.LINE_AA,
         )
 
-    # HUD: timer
+    # HUD: timer (center) + frame counter (top-right heartbeat)
     t = scene.game.time_left
     label = f"{t:5.1f}s" + ("" if scene.game.running else "  (paused)")
     cv2.putText(
@@ -105,6 +112,12 @@ def render_frame(scene: Scene) -> np.ndarray:
         (FIELD_W // 2 - 90, 40),
         cv2.FONT_HERSHEY_SIMPLEX, 1.0,
         (255, 255, 255), 2, cv2.LINE_AA,
+    )
+    cv2.putText(
+        frame, f"f{next(_frame_counter):06d}",
+        (FIELD_W - 160, 30),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+        (200, 200, 200), 1, cv2.LINE_AA,
     )
 
     return frame
