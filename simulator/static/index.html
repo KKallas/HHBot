@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>HHBot Simulator</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>HHBot Simulator</h1>
+    <div id="hud">
+      <span>Mode: <strong id="mode-label">Move R1</strong></span>
+      <span>Timer: <strong id="timer">—</strong></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage">
+      <div class="toolbar" id="modes">
+        <button data-mode="move1" class="active">Move R1</button>
+        <button data-mode="move2">Move R2</button>
+        <button data-mode="tag">Add Tag</button>
+        <label class="value-input">
+          value
+          <input id="tag-value" type="number" value="1" min="1" max="999">
+        </label>
+      </div>
+
+      <div class="video-wrap">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="click-pad" title="Click to fire current mode (Move R1 / Move R2 / Add Tag)"></div>
+        <button id="play-overlay" hidden>▶ Click to start playback</button>
+        <div id="stream-status" class="status">Loading hls.js…</div>
+      </div>
+
+      <div class="controls">
+        <button data-cmd="/robot/1/pick">R1 Pick</button>
+        <button data-cmd="/robot/1/drop">R1 Drop</button>
+        <button data-cmd="/robot/2/pick">R2 Pick</button>
+        <button data-cmd="/robot/2/drop">R2 Drop</button>
+        <button data-cmd="/game/start" class="primary">Game Start</button>
+        <button data-cmd="/game/reset" class="danger">Game Reset</button>
+      </div>
+    </section>
+
+    <details class="state">
+      <summary>State (JSON)</summary>
+      <pre id="state-json">—</pre>
+    </details>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
