@@ -5,6 +5,8 @@ const FIELD_H = 720;
 const STREAM_URL = "/hls/playlist.m3u8";
 
 const video = document.getElementById("video");
+const clickPad = document.getElementById("click-pad");
+const playOverlay = document.getElementById("play-overlay");
 const modeButtons = document.querySelectorAll("#modes button");
 const cmdButtons = document.querySelectorAll(".controls button");
 const modeLabel = document.getElementById("mode-label");
@@ -38,10 +40,12 @@ cmdButtons.forEach((b) => {
   b.addEventListener("click", () => fire(b.dataset.cmd));
 });
 
-video.addEventListener("click", (e) => {
-  const rect = video.getBoundingClientRect();
-  // Video wrap is locked to 16:9 and source is 16:9, so the rect maps
-  // 1:1 to the canvas — no letterboxing math needed.
+// Clicks land on #click-pad (transparent overlay), not on <video>, so the
+// browser's built-in play/pause toggle never sees them.
+clickPad.addEventListener("click", (e) => {
+  const rect = clickPad.getBoundingClientRect();
+  // The pad is locked to the video's 16:9 box and source is 16:9, so the
+  // rect maps 1:1 to canvas pixels — no letterboxing math needed.
   const sx = FIELD_W / rect.width;
   const sy = FIELD_H / rect.height;
   const x = Math.round((e.clientX - rect.left) * sx);
@@ -54,6 +58,15 @@ video.addEventListener("click", (e) => {
     const v = parseInt(tagValueInput.value, 10) || 1;
     fire(`/tag/add?x=${x}&y=${y}&value=${v}`);
   }
+});
+
+// Manual play fallback: shown only when autoplay is blocked. The click
+// is a real user gesture so video.play() is guaranteed to succeed.
+playOverlay.addEventListener("click", () => {
+  video.play().then(() => {
+    playOverlay.hidden = true;
+    setStatus("");
+  }).catch((err) => setStatus(`Play failed: ${err.message || err.name}`, "error"));
 });
 
 // HLS setup — Safari plays natively; everyone else needs hls.js.
@@ -71,11 +84,15 @@ function setStatus(text, kind) {
 
 function tryPlay() {
   // Some Chromium contexts (cross-origin iframe, fresh tab, no user
-  // interaction yet) reject muted autoplay. The native controls give a
-  // fallback button if this rejects.
+  // interaction yet) reject muted autoplay. If that happens, reveal the
+  // big ▶ overlay so a single click resumes playback.
   const p = video.play();
   if (p && typeof p.catch === "function") {
-    p.catch((err) => setStatus(`Autoplay blocked — click ▶ on the video. (${err.message || err.name})`, "error"));
+    p.then(() => { playOverlay.hidden = true; })
+     .catch(() => {
+       playOverlay.hidden = false;
+       setStatus("Autoplay blocked — click the ▶ overlay to start.", "error");
+     });
   }
 }
 
@@ -122,10 +139,16 @@ attachHls();
 // Native <video> events independently confirm decode + display state.
 // hls.js can happily report FRAG_LOADED while the video remains paused or
 // stuck on the first frame — these listeners tell us the *element* state.
-video.addEventListener("playing", () => setStatus(""));
+video.addEventListener("playing", () => { setStatus(""); playOverlay.hidden = true; });
 video.addEventListener("waiting", () => setStatus("Buffering…"));
 video.addEventListener("stalled", () => setStatus("Stalled — network or pipe paused"));
-video.addEventListener("pause", () => setStatus("Paused — press ▶"));
+video.addEventListener("pause", () => {
+  // <video> auto-pauses when the tab is hidden — don't nag in that case.
+  if (!document.hidden) {
+    playOverlay.hidden = false;
+    setStatus("Paused — click the ▶ overlay to resume.", "error");
+  }
+});
 video.addEventListener("error", () => {
   const e = video.error;
   setStatus(`Video element error: code ${e ? e.code : "?"}`, "error");
