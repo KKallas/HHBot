@@ -49,6 +49,14 @@ ROBOT_HOMES_MM = {
     1: (250.0, 400.0),       # left
     2: (750.0, 400.0),       # right
 }
+
+# Start posture: arms partly extended toward the opponent so the field looks
+# alive on a fresh boot and the marker rotation is immediately visible.
+HOME_EXTEND_FRAC = 0.30      # TCP starts 30% of reach toward the opposing robot
+ROBOT_FACING_X = {           # +1 if this robot faces right, -1 if left
+    1: +1,
+    2: -1,
+}
 ROBOT_COLORS = {
     1: (255, 140, 0),        # BGR: blue
     2: (0, 140, 255),        # BGR: orange
@@ -102,15 +110,18 @@ class Scene:
     # ----- mutations -----
 
     def _reset_robots(self) -> None:
-        """Robots idle at home X/Y, Z = Z_safe (traverse altitude)."""
+        """Robots face each other with TCP extended HOME_EXTEND_FRAC of reach
+        toward the opponent; Z starts at Z_safe."""
         self.robots.clear()
         for rid, (bx, by) in ROBOT_HOMES_MM.items():
+            extend = ROBOT_FACING_X[rid] * HOME_EXTEND_FRAC * ROBOT_REACH_MM
+            tcp_x = bx + extend
             self.robots[rid] = Robot(
                 id=rid,
                 base_x=bx, base_y=by,
                 reach_r=ROBOT_REACH_MM,
-                x=bx, y=by, z=Z_SAFE_MM,
-                target_x=bx, target_y=by, target_z=Z_SAFE_MM,
+                x=tcp_x, y=by, z=Z_SAFE_MM,
+                target_x=tcp_x, target_y=by, target_z=Z_SAFE_MM,
                 color=ROBOT_COLORS[rid],
             )
 

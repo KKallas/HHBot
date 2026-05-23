@@ -14,6 +14,7 @@ ground truth in-band with the video.
 from __future__ import annotations
 
 import itertools
+import math
 
 import cv2
 import numpy as np
@@ -48,7 +49,7 @@ AXIS_LABEL_EVERY_MM = 200
 ARM_WIDTH_MM = 30                 # arm rectangle thickness
 TCP_RADIUS_MM = 6
 TCP_MARKER_SIZE_MM = 30           # ArUco marker on TCP (mm side)
-TAG_MARKER_SIZE_MM = 30           # ArUco marker for tags (mm side)
+TAG_MARKER_SIZE_MM = 16           # AtomS3R display is 0.85" diag ≈ 15 mm square
 
 # ----- ArUco dictionaries -----
 # Tags and robots use different dictionaries so a CV pipeline can tell them
@@ -95,6 +96,53 @@ def _blit_marker(frame: np.ndarray, cx: int, cy: int, side_px: int,
     mx0, my0 = fx0 - x0, fy0 - y0
     mx1, my1 = mx0 + (fx1 - fx0), my0 + (fy1 - fy0)
     frame[fy0:fy1, fx0:fx1] = m[my0:my1, mx0:mx1]
+
+
+def _blit_rotated_marker(frame: np.ndarray, cx: int, cy: int, side_px: int,
+                         dict_key: str, dictionary, marker_id: int,
+                         angle_deg: float) -> None:
+    """Rotate the marker around its center and composite onto `frame` so the
+    out-of-original pixels stay transparent (don't overwrite scene with black).
+
+    A real ArUco detector will read both the ID and the rotation back out, so
+    this also lets a CV pipeline recover the robot's wrist (J4) angle.
+    """
+    m = _marker_bgr(dict_key, dictionary, marker_id, side_px)
+    cos_a = abs(math.cos(math.radians(angle_deg)))
+    sin_a = abs(math.sin(math.radians(angle_deg)))
+    out_size = int(math.ceil(side_px * (cos_a + sin_a)))
+    center = (side_px / 2.0, side_px / 2.0)
+    M = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    # Translate so the rotated bbox fits in the larger output canvas
+    M[0, 2] += (out_size - side_px) / 2.0
+    M[1, 2] += (out_size - side_px) / 2.0
+
+    rotated = cv2.warpAffine(
+        m, M, (out_size, out_size),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0),
+    )
+    mask = cv2.warpAffine(
+        np.full((side_px, side_px), 255, dtype=np.uint8),
+        M, (out_size, out_size),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=0,
+    )
+
+    x0, y0 = cx - out_size // 2, cy - out_size // 2
+    x1, y1 = x0 + out_size, y0 + out_size
+    fx0, fy0 = max(0, x0), max(0, y0)
+    fx1, fy1 = min(frame.shape[1], x1), min(frame.shape[0], y1)
+    if fx0 >= fx1 or fy0 >= fy1:
+        return
+    mx0, my0 = fx0 - x0, fy0 - y0
+    mx1, my1 = mx0 + (fx1 - fx0), my0 + (fy1 - fy0)
+
+    roi = frame[fy0:fy1, fx0:fx1]
+    rot_roi = rotated[my0:my1, mx0:mx1]
+    mask_roi = mask[my0:my1, mx0:mx1]
+    mask_3 = cv2.cvtColor(mask_roi, cv2.COLOR_GRAY2BGR)
+    frame[fy0:fy1, fx0:fx1] = np.where(mask_3 > 0, rot_roi, roi)
 
 
 def _mm(v: float) -> int:
@@ -202,9 +250,21 @@ def _draw_robot(panel: np.ndarray, robot) -> None:
     cv2.circle(panel, (_mm(tx), _mm(ty)), _mm(TCP_RADIUS_MM),
                robot.color, thickness=-1, lineType=cv2.LINE_AA)
 
-    # 4) ArUco marker on top of the TCP — CV ground-truth reference
-    _blit_marker(panel, _mm(tx), _mm(ty), _mm(TCP_MARKER_SIZE_MM),
-                 "robot", _ROBOT_DICT, _ROBOT_MARKER_IDS[robot.id])
+    # 4) ArUco marker on the TCP, rotated so its right side aligns with the
+    #    arm direction — mimics a marker physically stuck on a J4-rotating
+    #    end-effector, and gives the CV pipeline wrist-angle recovery for free.
+    #    cv2 angle convention: positive = counter-clockwise in math sense,
+    #    which is visually clockwise when image Y points down. Negating the
+    #    atan2 angle makes the marker's local +X point along the arm.
+    if length > 1e-3:
+        arm_angle_deg = -math.degrees(math.atan2(dy, dx))
+    else:
+        arm_angle_deg = 0.0
+    _blit_rotated_marker(
+        panel, _mm(tx), _mm(ty), _mm(TCP_MARKER_SIZE_MM),
+        "robot", _ROBOT_DICT, _ROBOT_MARKER_IDS[robot.id],
+        arm_angle_deg,
+    )
 
 
 def _draw_tags(panel: np.ndarray, scene: Scene) -> None:
