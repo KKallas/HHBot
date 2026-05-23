@@ -1,4 +1,10 @@
-"""HTTP GET routes — the simulator's only control surface for milestone 1."""
+"""HTTP GET routes — simulator v2 control surface.
+
+All coordinates are in millimetres. /move requires z (no v1 back-compat).
+/pick succeeds only when TCP is within (pick_xy_tol, pick_z_tol) of an
+unheld tag's marker — the player code is responsible for descending to
+Z_marker before calling /pick.
+"""
 
 from __future__ import annotations
 
@@ -17,12 +23,17 @@ def build_router(scene: Scene) -> APIRouter:
             return scene.state()
 
     @router.get("/robot/{robot_id}/move")
-    async def move(robot_id: int, x: float = Query(...), y: float = Query(...)):
+    async def move(
+        robot_id: int,
+        x: float = Query(..., description="Target X in mm"),
+        y: float = Query(..., description="Target Y in mm"),
+        z: float = Query(..., description="Target Z in mm — required in v2"),
+    ):
         if robot_id not in scene.robots:
             raise HTTPException(404, f"Unknown robot {robot_id}")
         async with scene.lock:
-            tx, ty = scene.move_robot(robot_id, x, y)
-        return {"ok": True, "target": {"x": tx, "y": ty}}
+            tx, ty, tz = scene.move_robot(robot_id, x, y, z)
+        return {"ok": True, "target": {"x": tx, "y": ty, "z": tz}}
 
     @router.get("/robot/{robot_id}/pick")
     async def pick(robot_id: int):
@@ -42,8 +53,8 @@ def build_router(scene: Scene) -> APIRouter:
 
     @router.get("/tag/add")
     async def add_tag(
-        x: float = Query(...),
-        y: float = Query(...),
+        x: float = Query(..., description="Tag X in mm"),
+        y: float = Query(..., description="Tag Y in mm"),
         value: int = 1,
     ):
         async with scene.lock:

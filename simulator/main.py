@@ -20,8 +20,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api import build_router
-from .render import render_frame
-from .scene import FIELD_H, FIELD_W, Scene
+from .render import CANVAS_H_PX, CANVAS_W_PX, render_frame
+from .scene import Scene
 from .stream import HLSStreamer
 
 
@@ -53,7 +53,7 @@ async def render_loop(scene: Scene, streamer: HLSStreamer) -> None:
 def create_app() -> FastAPI:
     HLS_DIR.mkdir(parents=True, exist_ok=True)
     scene = Scene()
-    streamer = HLSStreamer(FIELD_W, FIELD_H, FPS, HLS_DIR)
+    streamer = HLSStreamer(CANVAS_W_PX, CANVAS_H_PX, FPS, HLS_DIR)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
