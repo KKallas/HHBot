@@ -57,22 +57,60 @@ video.addEventListener("click", (e) => {
 });
 
 // HLS setup — Safari plays natively; everyone else needs hls.js.
+// We surface every failure on the page itself so a black <video> never
+// leaves us guessing whether the stream, the player, or autoplay is at fault.
+const statusEl = document.getElementById("stream-status");
+
+function setStatus(text, kind) {
+  if (!statusEl) return;
+  if (!text) { statusEl.classList.add("hidden"); return; }
+  statusEl.classList.remove("hidden");
+  statusEl.classList.toggle("error", kind === "error");
+  statusEl.textContent = text;
+}
+
+function tryPlay() {
+  // Some Chromium contexts (cross-origin iframe, fresh tab, no user
+  // interaction yet) reject muted autoplay. The native controls give a
+  // fallback button if this rejects.
+  const p = video.play();
+  if (p && typeof p.catch === "function") {
+    p.catch((err) => setStatus(`Autoplay blocked — click ▶ on the video. (${err.message || err.name})`, "error"));
+  }
+}
+
+let retries = 0;
 function attachHls() {
+  setStatus("Connecting to stream…");
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = STREAM_URL;
+    video.addEventListener("playing", () => setStatus(""), { once: true });
+    tryPlay();
     return;
   }
-  if (window.Hls && window.Hls.isSupported()) {
-    const hls = new window.Hls({ liveSyncDuration: 2, lowLatencyMode: true });
-    hls.loadSource(STREAM_URL);
-    hls.attachMedia(video);
-    hls.on(window.Hls.Events.ERROR, (_, data) => {
-      // Retry on fatal errors while ffmpeg warms up on first load
-      if (data.fatal) {
-        setTimeout(() => { hls.destroy(); attachHls(); }, 1500);
-      }
-    });
+  if (!window.Hls) {
+    setStatus("hls.js failed to load (CDN blocked?). Hard-refresh, or bundle hls.js locally.", "error");
+    return;
   }
+  if (!window.Hls.isSupported()) {
+    setStatus("This browser can't play HLS (no MSE support).", "error");
+    return;
+  }
+  const hls = new window.Hls({ liveSyncDuration: 2, lowLatencyMode: false });
+  hls.loadSource(STREAM_URL);
+  hls.attachMedia(video);
+  hls.on(window.Hls.Events.MANIFEST_PARSED, () => tryPlay());
+  hls.on(window.Hls.Events.FRAG_LOADED, () => setStatus(""));
+  hls.on(window.Hls.Events.ERROR, (_, data) => {
+    if (!data.fatal) return;
+    retries += 1;
+    if (retries > 8) {
+      setStatus(`Stream error after ${retries} retries: ${data.type}/${data.details}`, "error");
+      return;
+    }
+    setStatus(`Stream warming up (${data.details})… retry ${retries}`);
+    setTimeout(() => { hls.destroy(); attachHls(); }, 1200);
+  });
 }
 attachHls();
 

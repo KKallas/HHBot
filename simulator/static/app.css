@@ -66,7 +66,22 @@ main {
   border-radius: 6px;
   overflow: hidden;
 }
-#video { width: 100%; height: 100%; display: block; cursor: crosshair; }
+#video { width: 100%; height: 100%; display: block; cursor: crosshair; background: #000; }
+
+.status {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #cfcfcf;
+  font-size: 0.78rem;
+  border-radius: 4px;
+  pointer-events: none;
+  max-width: calc(100% - 16px);
+}
+.status.error { background: rgba(180, 30, 30, 0.85); color: #fff; }
+.status.hidden { display: none; }
 
 .state {
   background: #1c1c1c;
