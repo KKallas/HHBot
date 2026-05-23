@@ -17,9 +17,9 @@ pip install -r simulator/requirements.txt
 python -m simulator.main
 ```
 
-Open <http://127.0.0.1:8000>. The test page has a video player, a mode toolbar (Move R1 / Move R2 / Add Tag), pick/drop buttons, and Game Start/Reset. Click on the video to fire the current mode's command at those canvas coordinates.
+Open <http://127.0.0.1:7700>. The test page has a video player, a mode toolbar (Move R1 / Move R2 / Add Tag), pick/drop buttons, and Game Start/Reset. Click on the video to fire the current mode's command at those canvas coordinates.
 
-Environment overrides: `SIMULATOR_HOST` (default `127.0.0.1`), `SIMULATOR_PORT` (default `8000`).
+CLI flags: `--host` (default `127.0.0.1`), `--port` (default `7700`). Env fallbacks: `SIMULATOR_HOST`, `SIMULATOR_PORT`. The default port matches Nilsson's "project server" convention so it can be wired up as the project descriptor (see `.nilsson/config.json` at the HHBot repo root).
 
 ## HTTP API
 

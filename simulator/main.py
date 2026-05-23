@@ -7,6 +7,7 @@ asyncio.Lock on Scene.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import time
@@ -84,9 +85,14 @@ app = create_app()
 
 
 def run() -> None:
-    host = os.environ.get("SIMULATOR_HOST", "127.0.0.1")
-    port = int(os.environ.get("SIMULATOR_PORT", "8000"))
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    # CLI flags win, then env, then defaults. Env exists so the simulator can
+    # be repointed without touching argv (e.g. from a parent process).
+    parser = argparse.ArgumentParser(description="HHBot simulator")
+    parser.add_argument("--host", default=os.environ.get("SIMULATOR_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int,
+                        default=int(os.environ.get("SIMULATOR_PORT", "7700")))
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":
