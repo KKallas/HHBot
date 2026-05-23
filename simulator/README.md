@@ -47,7 +47,7 @@ Open <http://127.0.0.1:7700>. CLI flags: `--host` (default `0.0.0.0`), `--port` 
 | Endpoint | Effect |
 |---|---|
 | `GET /robot/{1,2}/move?x=&y=&z=` | Move TCP toward `(x, y, z)` in mm. **`z` is required.** X/Y outside the reach disk clamp to the reach boundary; Z clamps to `[0, 150]`. |
-| `GET /robot/{1,2}/pick` | Attach the nearest free tag if TCP is within (`pick_xy_tol`, `pick_z_tol`) of its marker. Player code is responsible for descending to `Z_marker` before calling this. |
+| `GET /robot/{1,2}/pick` | **Full sequence by default**: locks the planar target, descends to `Z_marker`, attaches the nearest in-range tag, ascends back to `Z_safe`. Non-blocking — returns immediately with `phase: "descending"`; poll `/state` and watch `robots[i].pick_phase` go `descending → ascending → null`. Pass `?descend=false` to attach in place (v1 behaviour: TCP must already be at `Z_marker`). Any `/move` cancels an active sequence. |
 | `GET /robot/{1,2}/drop` | Release the held tag at the current TCP X/Y; tag Z resets to `Z_marker`. |
 | `GET /tag/add?x=&y=&value=1` | Add an ArUco tag at `(x, y)` mm on the field surface. |
 | `GET /game/start` | Begin the 90 s countdown. |
@@ -56,20 +56,21 @@ Open <http://127.0.0.1:7700>. CLI flags: `--host` (default `0.0.0.0`), `--port` 
 | `GET /stream` | `302 → /hls/playlist.m3u8`. |
 | `GET /` | The built-in test page (primitives only). |
 
-### Pickup sequence (player-side)
+### Pickup sequence
 
-The simulator only exposes primitives. A pickup is a script the player writes, e.g.:
+`/pick` is auto-sequenced — one HTTP call performs descend → attach → ascend. A complete pickup looks like:
 
 ```python
-move(robot=1, x=tag_x, y=tag_y, z=Z_safe)     # fly over
-move(robot=1, x=tag_x, y=tag_y, z=Z_marker)   # descend onto marker
-pick(robot=1)                                  # vacuum
-move(robot=1, x=tag_x, y=tag_y, z=Z_safe)     # ascend
+move(robot=1, x=tag_x, y=tag_y, z=Z_safe)     # fly over the tag
+pick(robot=1)                                  # descend, vacuum, ascend (~0.4 s)
+# poll /state until robots[0].pick_phase is null and holding != null
 move(robot=1, x=box_x, y=box_y, z=Z_safe)     # carry to receptacle
-drop(robot=1)
+drop(robot=1)                                  # release at current Z
 ```
 
-The test page itself only fires the planar primitive (Move at `Z_safe`); you exercise full descent cycles via `curl` or a Python script.
+In the test page, that's: Move-R1 click on tag → R1 Pick button → wait briefly → Move-R1 click on receptacle → R1 Drop.
+
+If you'd rather drive the descent manually (e.g. for stepwise debugging), call `/pick?descend=false` — that's the v1 attach-only behaviour, and your script is responsible for getting TCP to `Z_marker` first.
 
 ## Defaults
 

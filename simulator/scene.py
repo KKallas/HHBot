@@ -77,6 +77,11 @@ class Robot:
     target_z: float
     holding: Optional[int] = None
     color: tuple = (255, 255, 255)
+    # Auto-pick sequence state. /pick locks X/Y, descends to Z_marker, tries to
+    # attach a tag, then ascends back to Z_safe. /move cancels the sequence.
+    pick_phase: Optional[str] = None     # None | "descending" | "ascending"
+    pick_lock_x: float = 0.0
+    pick_lock_y: float = 0.0
 
 
 @dataclass
@@ -157,8 +162,10 @@ class Scene:
 
     def move_robot(self, robot_id: int, x: float, y: float, z: float) -> tuple[float, float, float]:
         """Set the robot's 3D target. X/Y outside the reach disk are clamped
-        to the reach boundary; Z is clamped to [ROBOT_MIN_Z, ROBOT_MAX_Z]."""
+        to the reach boundary; Z is clamped to [ROBOT_MIN_Z, ROBOT_MAX_Z].
+        Cancels any in-progress /pick sequence."""
         r = self.robots[robot_id]
+        r.pick_phase = None
         # Clamp X/Y to reach disk
         dx = x - r.base_x
         dy = y - r.base_y
@@ -174,10 +181,9 @@ class Scene:
         r.target_z = float(z)
         return (r.target_x, r.target_y, r.target_z)
 
-    def pick(self, robot_id: int) -> Optional[int]:
-        """Attach the nearest free tag if TCP is within XY and Z tolerance of
-        its marker. Returns the tag id now held, or None if not in range."""
-        r = self.robots[robot_id]
+    def _try_attach(self, r: Robot) -> Optional[int]:
+        """Attach the nearest free tag if TCP is within XY+Z tolerance. No
+        motion; just the attach check. Returns tag id now held, or None."""
         if r.holding is not None:
             return r.holding
         best_id: Optional[int] = None
@@ -192,9 +198,38 @@ class Scene:
                 best_d = d
                 best_id = tid
         if best_id is not None:
-            self.tags[best_id].carried_by = robot_id
+            self.tags[best_id].carried_by = r.id
             r.holding = best_id
         return best_id
+
+    def pick(self, robot_id: int, descend: bool = True) -> dict:
+        """Start a pickup. With descend=True (default): lock X/Y, drop to
+        Z_marker, attach, ascend back to Z_safe — the full sequence runs in
+        step(). With descend=False: attach in place at current Z (the v1
+        behaviour, useful when the player is already scripting the descent).
+
+        Returns a status dict; clients poll /state for the sequence to finish.
+        """
+        r = self.robots[robot_id]
+        if r.holding is not None:
+            return {"action": "already_holding", "holding": r.holding,
+                    "phase": r.pick_phase}
+        if r.pick_phase is not None:
+            return {"action": "already_picking", "holding": None,
+                    "phase": r.pick_phase}
+        if not descend:
+            attached = self._try_attach(r)
+            return {"action": "attached" if attached else "no_tag_in_range",
+                    "holding": attached, "phase": None}
+        # Lock the planar target so /move from elsewhere doesn't drift the
+        # robot during descent; sequence transitions in step().
+        r.pick_lock_x = r.x
+        r.pick_lock_y = r.y
+        r.target_x = r.x
+        r.target_y = r.y
+        r.target_z = Z_MARKER_MM
+        r.pick_phase = "descending"
+        return {"action": "started", "holding": None, "phase": "descending"}
 
     def drop(self, robot_id: int) -> Optional[int]:
         r = self.robots[robot_id]
@@ -224,6 +259,21 @@ class Scene:
                 r.x += dx / d * step
                 r.y += dy / d * step
                 r.z += dz / d * step
+
+            # Pick sequence state machine — descending → attach → ascending → done
+            if r.pick_phase == "descending":
+                if (abs(r.z - Z_MARKER_MM) < 0.5
+                        and abs(r.x - r.pick_lock_x) < 0.5
+                        and abs(r.y - r.pick_lock_y) < 0.5):
+                    self._try_attach(r)
+                    # Always ascend, even if no tag was in range — predictable
+                    # posture: TCP ends at Z_safe whether or not pickup succeeded.
+                    r.target_z = Z_SAFE_MM
+                    r.pick_phase = "ascending"
+            elif r.pick_phase == "ascending":
+                if abs(r.z - Z_SAFE_MM) < 0.5:
+                    r.pick_phase = None
+
         # Carried tags follow holder TCP exactly
         for t in self.tags.values():
             if t.carried_by is not None:
@@ -266,6 +316,7 @@ class Scene:
                     "reach": r.reach_r,
                     "tool_z": Z_TOOL_MM,
                     "holding": r.holding,
+                    "pick_phase": r.pick_phase,
                 }
                 for r in self.robots.values()
             ],

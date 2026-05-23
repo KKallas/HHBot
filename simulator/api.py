@@ -36,12 +36,17 @@ def build_router(scene: Scene) -> APIRouter:
         return {"ok": True, "target": {"x": tx, "y": ty, "z": tz}}
 
     @router.get("/robot/{robot_id}/pick")
-    async def pick(robot_id: int):
+    async def pick(robot_id: int, descend: bool = True):
+        """Default: descend → attach → ascend (full sequence; non-blocking,
+        poll /state to see `pick_phase` transition through descending →
+        ascending → null). Pass `?descend=false` for a v1-style in-place
+        attach (the script is responsible for getting TCP to Z_marker first).
+        """
         if robot_id not in scene.robots:
             raise HTTPException(404, f"Unknown robot {robot_id}")
         async with scene.lock:
-            picked = scene.pick(robot_id)
-        return {"ok": True, "picked": picked}
+            result = scene.pick(robot_id, descend=descend)
+        return {"ok": True, **result}
 
     @router.get("/robot/{robot_id}/drop")
     async def drop(robot_id: int):
