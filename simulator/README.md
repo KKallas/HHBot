@@ -13,6 +13,7 @@ A standalone Python service that renders the HHBot game field in real physical u
 - **3D motion.** Robots have Z; `/move` requires `z`. Straight-line 3D interpolation at 300 mm/s. Pick succeeds only when TCP is within `10 mm` X/Y and `3 mm` Z of an unheld tag's marker.
 - **Side-strip Z viz.** A 140 px strip below the top-down shows each robot's TCP altitude, with reference lines at `Z = 0`, `Z_marker = 36.83 mm`, and `Z_safe = 55.25 mm`.
 - **Grid + dimensions.** 50 mm minor / 100 mm major gridlines, X/Y labels every 200 mm, overall field dimensions printed on the panel.
+- **Receptacles + scoring.** Each robot owns a 100 × 80 mm bin on its *left when facing the opponent*, placed in the opponent's unreachable zone. R1's bin sits top-left at `(50, 8)`; R2's bin sits bottom-right at `(550, 306)`. Calling `/drop` while TCP is inside your own bin *scores* the tag — it leaves the field and the bin's running `count` / `value` increment. Drops outside the bin still land on the field as before.
 
 ## Z reference table
 
@@ -48,7 +49,7 @@ Open <http://127.0.0.1:7700>. CLI flags: `--host` (default `0.0.0.0`), `--port` 
 |---|---|
 | `GET /robot/{1,2}/move?x=&y=&z=` | Move TCP toward `(x, y, z)` in mm. **`z` is required.** X/Y outside the reach disk clamp to the reach boundary; Z clamps to `[0, 150]`. |
 | `GET /robot/{1,2}/pick` | **Full sequence by default**: locks the planar target, descends to `Z_marker`, attaches the nearest in-range tag, ascends back to `Z_safe`. Non-blocking — returns immediately with `phase: "descending"`; poll `/state` and watch `robots[i].pick_phase` go `descending → ascending → null`. Pass `?descend=false` to attach in place (v1 behaviour: TCP must already be at `Z_marker`). Any `/move` cancels an active sequence. |
-| `GET /robot/{1,2}/drop` | Release the held tag at the current TCP X/Y; tag Z resets to `Z_marker`. |
+| `GET /robot/{1,2}/drop` | Release the held tag. If TCP is inside your own receptacle, the tag is **scored** (response `action: "scored"` + new `count` / `value`) and removed from the field. Otherwise it falls to the field at TCP X/Y with Z = `Z_marker`. |
 | `GET /tag/add?x=&y=&value=1` | Add an ArUco tag at `(x, y)` mm on the field surface. |
 | `GET /game/start` | Begin the 90 s countdown. |
 | `GET /game/reset` | Clear tags, home the robots at `Z_safe`, reset the timer. |
@@ -80,6 +81,17 @@ If you'd rather drive the descent manually (e.g. for stepwise debugging), call `
 - ArUco: tags use `DICT_4X4_50` (16 mm side, matches the AtomS3R display); robot TCP markers use `DICT_5X5_50` (30 mm side, IDs 0 and 1), rotated with the arm direction
 - Render canvas: **700 × 394 px** at 1 mm = 1 px
 - HLS: 25 fps, 1 s segments, last 5 retained
+
+### Scoring sequence
+
+```python
+move(robot=1, x=tag_x, y=tag_y, z=Z_safe)     # fly over the tag
+pick(robot=1)                                  # descend, vacuum, ascend
+move(robot=1, x=100, y=48,    z=Z_safe)       # carry to R1's bin centre
+drop(robot=1)                                  # action: "scored" — count++
+```
+
+`/state` exposes each receptacle's running totals at `receptacles[i].count` and `receptacles[i].value`. The bin labels in the render also update live (`R1 BIN 3t / 12pt`).
 
 ## Deliberately out of scope
 

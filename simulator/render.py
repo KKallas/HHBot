@@ -25,6 +25,7 @@ from .scene import (
     ROBOT_BASE_SIDE_MM,
     Scene,
 )
+from .scene import ROBOT_COLORS
 
 
 # ----- display configuration -----
@@ -274,6 +275,32 @@ def _draw_tags(panel: np.ndarray, scene: Scene) -> None:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
 
+def _draw_receptacles(panel: np.ndarray, scene: Scene) -> None:
+    """Each robot's scoring zone: tinted fill + colored border + live count
+    and total-value label. Drawn under tags so a tag mid-air over the
+    receptacle still reads clearly."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    overlay = panel.copy()
+    for rec in scene.receptacles.values():
+        color = ROBOT_COLORS.get(rec.robot_id, (200, 200, 200))
+        p0 = (_mm(rec.x), _mm(rec.y))
+        p1 = (_mm(rec.x + rec.w), _mm(rec.y + rec.h))
+        cv2.rectangle(overlay, p0, p1, color, thickness=-1)
+    cv2.addWeighted(overlay, 0.18, panel, 0.82, 0, dst=panel)
+
+    for rec in scene.receptacles.values():
+        color = ROBOT_COLORS.get(rec.robot_id, (200, 200, 200))
+        p0 = (_mm(rec.x), _mm(rec.y))
+        p1 = (_mm(rec.x + rec.w), _mm(rec.y + rec.h))
+        cv2.rectangle(panel, p0, p1, color, thickness=2)
+        label = f"R{rec.robot_id} BIN  {rec.count}t / {rec.value}pt"
+        cv2.putText(
+            panel, label,
+            (_mm(rec.x) + 4, _mm(rec.y) + 16),
+            font, 0.42, (255, 255, 255), 1, cv2.LINE_AA,
+        )
+
+
 # ----- top-level frame -----
 
 def render_frame(scene: Scene) -> np.ndarray:
@@ -284,6 +311,7 @@ def render_frame(scene: Scene) -> np.ndarray:
     _draw_grid(frame)
     _draw_axis_labels(frame)
     _draw_reach_circles(frame, scene)
+    _draw_receptacles(frame, scene)
     _draw_tags(frame, scene)
     for r in scene.robots.values():
         _draw_robot(frame, r)

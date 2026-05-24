@@ -50,11 +50,14 @@ def build_router(scene: Scene) -> APIRouter:
 
     @router.get("/robot/{robot_id}/drop")
     async def drop(robot_id: int):
+        """Release the held tag. If TCP is inside this robot's receptacle the
+        tag is *scored* (response.action == "scored") and removed from the
+        field; otherwise it lands on the field at TCP X/Y."""
         if robot_id not in scene.robots:
             raise HTTPException(404, f"Unknown robot {robot_id}")
         async with scene.lock:
-            dropped = scene.drop(robot_id)
-        return {"ok": True, "dropped": dropped}
+            result = scene.drop(robot_id)
+        return {"ok": True, **result}
 
     @router.get("/tag/add")
     async def add_tag(
