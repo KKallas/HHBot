@@ -101,9 +101,14 @@ class Tag:
 
 @dataclass
 class Game:
-    running: bool = False
+    # State machine: idle → running → (paused ↔ running) → ended → idle (via reset)
+    state: str = "idle"
     time_left: float = ROUND_SECONDS
     duration: float = ROUND_SECONDS
+
+    @property
+    def running(self) -> bool:
+        return self.state == "running"
 
 
 # ----- receptacle -----
@@ -187,10 +192,30 @@ class Scene:
         self._next_aruco_id = 0
         self.game = Game()
 
-    def start_game(self) -> None:
-        if not self.game.running:
-            self.game.running = True
+    def start_game(self) -> str:
+        """Smart start: fresh start from idle/ended (resets time_left),
+        resume from paused (keeps time_left), no-op while running.
+        Returns the new state for the caller to surface."""
+        s = self.game.state
+        if s in ("idle", "ended"):
+            self.game.state = "running"
             self.game.time_left = self.game.duration
+        elif s == "paused":
+            self.game.state = "running"
+        return self.game.state
+
+    def pause_game(self) -> str:
+        """Only allowed while running. From paused or ended it's a no-op."""
+        if self.game.state == "running":
+            self.game.state = "paused"
+        return self.game.state
+
+    def end_game(self) -> str:
+        """Stop a running or paused game without clearing the field; final
+        score stays visible in /state until /game/reset clears everything."""
+        if self.game.state in ("running", "paused"):
+            self.game.state = "ended"
+        return self.game.state
 
     def add_tag(
         self,
@@ -354,7 +379,7 @@ class Scene:
             self.game.time_left -= dt
             if self.game.time_left <= 0:
                 self.game.time_left = 0
-                self.game.running = False
+                self.game.state = "ended"
 
     def state(self) -> dict:
         return {
@@ -369,7 +394,10 @@ class Scene:
             },
             "pick": {"xy_tol": PICK_XY_TOL_MM, "z_tol": PICK_Z_TOL_MM},
             "game": {
-                "running": self.game.running,
+                "state": self.game.state,
+                "running": self.game.state == "running",
+                "paused": self.game.state == "paused",
+                "ended": self.game.state == "ended",
                 "time_left": round(self.game.time_left, 2),
                 "duration": self.game.duration,
             },

@@ -316,9 +316,10 @@ def render_frame(scene: Scene) -> np.ndarray:
     for r in scene.robots.values():
         _draw_robot(frame, r)
 
-    # HUD: timer (center top) + frame heartbeat (top-right)
+    # HUD: timer + state tag (center top) + frame heartbeat (top-right)
     t = scene.game.time_left
-    label = f"{t:5.1f}s" + ("" if scene.game.running else "  (paused)")
+    state = scene.game.state
+    label = f"{t:5.1f}s  ({state})" if state != "running" else f"{t:5.1f}s"
     cv2.putText(frame, label, (CANVAS_W_PX // 2 - 80, 26),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, f"f{next(_frame_counter):06d}",

@@ -71,15 +71,31 @@ def build_router(scene: Scene) -> APIRouter:
 
     @router.get("/game/start")
     async def game_start():
+        """Fresh start from idle/ended (resets timer) or resume from paused."""
         async with scene.lock:
-            scene.start_game()
-        return {"ok": True}
+            new_state = scene.start_game()
+        return {"ok": True, "state": new_state}
+
+    @router.get("/game/pause")
+    async def game_pause():
+        """Freeze timer; robot motion + commands still work. No-op unless
+        the game is currently running."""
+        async with scene.lock:
+            new_state = scene.pause_game()
+        return {"ok": True, "state": new_state}
+
+    @router.get("/game/end")
+    async def game_end():
+        """Stop the round; final score stays in /state until /game/reset."""
+        async with scene.lock:
+            new_state = scene.end_game()
+        return {"ok": True, "state": new_state}
 
     @router.get("/game/reset")
     async def game_reset():
         async with scene.lock:
             scene.reset()
-        return {"ok": True}
+        return {"ok": True, "state": "idle"}
 
     @router.get("/stream")
     async def stream():
