@@ -106,15 +106,53 @@ class Game:
     duration: float = ROUND_SECONDS
 
 
+# ----- receptacle -----
+# Half the robot base side, placed on the robot's *left when facing opponent*,
+# inside the area the other robot's reach can't touch (so the opponent can't
+# steal/sabotage). Bottom-left origin + width/height in mm. See issue #5.
+RECEPTACLE_W_MM = 100.0
+RECEPTACLE_H_MM = 80.0
+
+RECEPTACLE_POS_MM = {
+    # R1 faces +X; its left = -Y (above the body) — top-left quadrant
+    1: (50.0, 8.0),
+    # R2 faces -X; its left = +Y (below the body) — bottom-right quadrant
+    2: (550.0, 306.0),
+}
+
+
+@dataclass
+class Receptacle:
+    """Per-robot scoring zone. count = number of tags delivered;
+    value = sum of their point values; collected = (tag_id, value) audit log."""
+    robot_id: int
+    x: float                 # top-left X in mm
+    y: float                 # top-left Y in mm
+    w: float
+    h: float
+    count: int = 0
+    value: int = 0
+    collected: list = None   # initialised in __post_init__
+
+    def __post_init__(self):
+        if self.collected is None:
+            self.collected = []
+
+    def contains(self, px: float, py: float) -> bool:
+        return self.x <= px <= self.x + self.w and self.y <= py <= self.y + self.h
+
+
 class Scene:
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
         self.robots: dict[int, Robot] = {}
         self.tags: dict[int, Tag] = {}
+        self.receptacles: dict[int, Receptacle] = {}
         self.game = Game()
         self._next_tag_id = 1
         self._next_aruco_id = 0
         self._reset_robots()
+        self._reset_receptacles()
 
     # ----- mutations -----
 
@@ -134,8 +172,16 @@ class Scene:
                 color=ROBOT_COLORS[rid],
             )
 
+    def _reset_receptacles(self) -> None:
+        self.receptacles.clear()
+        for rid, (x, y) in RECEPTACLE_POS_MM.items():
+            self.receptacles[rid] = Receptacle(
+                robot_id=rid, x=x, y=y, w=RECEPTACLE_W_MM, h=RECEPTACLE_H_MM,
+            )
+
     def reset(self) -> None:
         self._reset_robots()
+        self._reset_receptacles()
         self.tags.clear()
         self._next_tag_id = 1
         self._next_aruco_id = 0
@@ -235,19 +281,37 @@ class Scene:
         r.pick_phase = "descending"
         return {"action": "started", "holding": None, "phase": "descending"}
 
-    def drop(self, robot_id: int) -> Optional[int]:
+    def drop(self, robot_id: int) -> dict:
+        """Release the held tag. If TCP X/Y is inside this robot's receptacle,
+        the tag is *scored* — removed from the field, added to the receptacle's
+        running count + value. Otherwise it falls to the field at TCP X/Y with
+        Z reset to Z_marker.
+        Returns a status dict with the tag id and the action taken."""
         r = self.robots[robot_id]
         if r.holding is None:
-            return None
+            return {"action": "no_tag", "tag_id": None}
         tid = r.holding
         t = self.tags[tid]
+        rec = self.receptacles.get(robot_id)
+
+        if rec is not None and rec.contains(r.x, r.y):
+            value = t.value
+            rec.collected.append({"tag_id": tid, "value": value})
+            rec.count += 1
+            rec.value += value
+            del self.tags[tid]
+            r.holding = None
+            return {
+                "action": "scored", "tag_id": tid, "value": value,
+                "receptacle": {"count": rec.count, "value": rec.value},
+            }
+
         t.carried_by = None
-        # Tag drops to the field surface at the TCP's X/Y (Z resets to marker face)
         t.x = r.x
         t.y = r.y
         t.z = Z_MARKER_MM
         r.holding = None
-        return tid
+        return {"action": "dropped", "tag_id": tid}
 
     # ----- per-frame step -----
 
@@ -331,5 +395,13 @@ class Scene:
                     "value": t.value, "carried_by": t.carried_by,
                 }
                 for t in self.tags.values()
+            ],
+            "receptacles": [
+                {
+                    "robot_id": r.robot_id,
+                    "x": r.x, "y": r.y, "w": r.w, "h": r.h,
+                    "count": r.count, "value": r.value,
+                }
+                for r in self.receptacles.values()
             ],
         }
