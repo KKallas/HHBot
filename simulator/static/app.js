@@ -1,7 +1,19 @@
 // Test page wiring: HLS player + mode-driven clicks + state polling.
+//
+// Canvas math: the rendered stream is CANVAS_W x CANVAS_H pixels. The top
+// FIELD_H pixels are the top-down field (1 px = 1 mm); the bottom strip is
+// the Z viz panel. Clicks inside the top-down map directly to world mm.
+// Clicks inside the side strip are ignored.
 
-const FIELD_W = 1280;
-const FIELD_H = 720;
+const FIELD_W_MM = 700;
+const FIELD_H_MM = 394;
+const CANVAS_W = FIELD_W_MM;
+const CANVAS_H = FIELD_H_MM;
+
+// Default Z for click-driven move commands. The test page is a primitives
+// tester — descend/ascend cycles are scripted in Python by the player.
+let CLICK_Z = 55.25;                   // Z_safe in mm (overridden by /state at boot)
+
 const STREAM_URL = "/hls/playlist.m3u8";
 
 const video = document.getElementById("video");
@@ -44,19 +56,24 @@ cmdButtons.forEach((b) => {
 // browser's built-in play/pause toggle never sees them.
 clickPad.addEventListener("click", (e) => {
   const rect = clickPad.getBoundingClientRect();
-  // The pad is locked to the video's 16:9 box and source is 16:9, so the
-  // rect maps 1:1 to canvas pixels — no letterboxing math needed.
-  const sx = FIELD_W / rect.width;
-  const sy = FIELD_H / rect.height;
-  const x = Math.round((e.clientX - rect.left) * sx);
-  const y = Math.round((e.clientY - rect.top) * sy);
-  if (x < 0 || y < 0 || x > FIELD_W || y > FIELD_H) return;
+  // Pad spans the whole canvas (top-down + side strip). Translate from
+  // display pixels to canvas pixels (1 px = 1 mm in the top-down panel).
+  const sx = CANVAS_W / rect.width;
+  const sy = CANVAS_H / rect.height;
+  const px_x = (e.clientX - rect.left) * sx;
+  const px_y = (e.clientY - rect.top) * sy;
 
-  if (mode === "move1") fire(`/robot/1/move?x=${x}&y=${y}`);
-  else if (mode === "move2") fire(`/robot/2/move?x=${x}&y=${y}`);
+  if (px_x < 0 || px_y < 0 || px_x > FIELD_W_MM || px_y > FIELD_H_MM) return;
+
+  const x_mm = Math.round(px_x * 10) / 10;
+  const y_mm = Math.round(px_y * 10) / 10;
+  const z_mm = CLICK_Z.toFixed(2);
+
+  if (mode === "move1") fire(`/robot/1/move?x=${x_mm}&y=${y_mm}&z=${z_mm}`);
+  else if (mode === "move2") fire(`/robot/2/move?x=${x_mm}&y=${y_mm}&z=${z_mm}`);
   else if (mode === "tag") {
     const v = parseInt(tagValueInput.value, 10) || 1;
-    fire(`/tag/add?x=${x}&y=${y}&value=${v}`);
+    fire(`/tag/add?x=${x_mm}&y=${y_mm}&value=${v}`);
   }
 });
 
@@ -154,11 +171,13 @@ video.addEventListener("error", () => {
   setStatus(`Video element error: code ${e ? e.code : "?"}`, "error");
 });
 
-// Live state panel: poll /state at 2 Hz
+// Live state panel: poll /state at 2 Hz; pick up Z_safe from server so the
+// click-default mirrors whatever the simulator currently configures.
 async function poll() {
   try {
     const r = await fetch("/state");
     const j = await r.json();
+    if (j.z && typeof j.z.safe === "number") CLICK_Z = j.z.safe;
     timerEl.textContent = j.game.running
       ? `${j.game.time_left.toFixed(1)}s`
       : `${j.game.time_left.toFixed(1)}s (paused)`;

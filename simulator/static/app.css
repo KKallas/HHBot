@@ -61,6 +61,7 @@ main {
 .video-wrap {
   position: relative;
   width: 100%;
+  /* 16:9 camera view — bodies at the left/right edges. Z viz moved to /state. */
   aspect-ratio: 16 / 9;
   background: #000;
   border-radius: 6px;
